@@ -9,22 +9,19 @@ async function main() {
 
   // Deploy SymmioPartyB as upgradeable
   const Factory = await ethers.getContractFactory("MultiAccount");
-  const contract = await upgrades.deployProxy(Factory, [
-    "", "",
-    SymmioPartyA.bytecode,
-  ], { initializer: "initialize" });
+  const contract = await upgrades.deployProxy(Factory, ["", "", SymmioPartyA.bytecode], {
+    initializer: "initialize",
+  });
   await contract.deployed();
 
   const addresses = {
     proxy: contract.address,
     admin: await upgrades.erc1967.getAdminAddress(contract.address),
-    implementation: await upgrades.erc1967.getImplementationAddress(
-      contract.address,
-    ),
+    implementation: await upgrades.erc1967.getImplementationAddress(contract.address),
   };
   console.log(addresses);
 
-  await new Promise((r) => setTimeout(r, 15000));
+  await new Promise(r => setTimeout(r, 15000));
 
   console.log("Verifying contract...");
   await run("verify:verify", { address: addresses.implementation });
@@ -33,7 +30,7 @@ async function main() {
 
 main()
   .then(() => process.exit(0))
-  .catch((error) => {
+  .catch(error => {
     console.error(error);
     process.exit(1);
   });
