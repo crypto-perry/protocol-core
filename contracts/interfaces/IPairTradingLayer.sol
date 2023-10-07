@@ -4,7 +4,7 @@
 // For more information, see https://docs.symm.io/legal-disclaimer/license
 pragma solidity >=0.8.18;
 
-interface IMultiAccount {
+interface IPairTradingLayer {
     struct Account {
         address accountAddress;
         string name;

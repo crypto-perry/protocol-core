@@ -6,21 +6,21 @@ pragma solidity >=0.8.18;
 
 contract SymmioParty {
     address public symmioAddress;
-    address public multiAccountAddress;
+    address public topLayerAddress;
 
-    constructor(address multiAccountAddress_, address symmioAddress_) {
+    constructor(address topLayerAddress_, address symmioAddress_) {
         require(
-            multiAccountAddress_ != address(0) && symmioAddress_ != address(0),
+            topLayerAddress_ != address(0) && symmioAddress_ != address(0),
             "SymmioParty: Zero Address"
         );
-        multiAccountAddress = multiAccountAddress_;
+        topLayerAddress = topLayerAddress_;
         symmioAddress = symmioAddress_;
     }
 
     function _call(
         bytes memory _callData
     ) external returns (bool _success, bytes memory _resultData) {
-        require(msg.sender == multiAccountAddress, "SymmioParty: Sender should be MultiAccount");
+        require(msg.sender == topLayerAddress, "SymmioParty: Sender should be MultiAccount");
         return symmioAddress.call{ value: 0 }(_callData);
     }
 }

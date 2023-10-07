@@ -12,11 +12,11 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/ISymmio.sol";
 import "../interfaces/ISymmioParty.sol";
-import "../interfaces/IMultiAccount.sol";
+import "../interfaces/IPairTradingLayer.sol";
 import "hardhat/console.sol";
 
-contract MultiAccount is
-    IMultiAccount,
+contract PairTradingLayer is
+    IPairTradingLayer,
     Initializable,
     PausableUpgradeable,
     AccessControlUpgradeable
@@ -47,7 +47,7 @@ contract MultiAccount is
     bytes public partyImplementation;
 
     modifier onlyOwner(address account, address sender) {
-        require(partyAOwners[account] == sender, "MultiAccount: Sender isn't owner of account");
+        require(partyAOwners[account] == sender, "PairTradingLayer: Sender isn't owner of account");
         _;
     }
 
@@ -60,7 +60,7 @@ contract MultiAccount is
                 break;
             }
         }
-        require(found, "MultiAccount: Sender isn't trusted by this party");
+        require(found, "PairTradingLayer: Sender isn't trusted by this party");
         _;
     }
 
@@ -100,7 +100,7 @@ contract MultiAccount is
     }
 
     function _deployParty() internal returns (address contractAddress) {
-        bytes32 salt = keccak256(abi.encodePacked("MultiAccount_", saltCounter));
+        bytes32 salt = keccak256(abi.encodePacked("PairTradingLayer_", saltCounter));
         saltCounter += 1;
         bytes memory bytecode = abi.encodePacked(
             partyImplementation,
@@ -109,7 +109,7 @@ contract MultiAccount is
         assembly {
             contractAddress := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
-        require(contractAddress != address(0), "MultiAccount: create2 failed");
+        require(contractAddress != address(0), "PairTradingLayer: create2 failed");
         return contractAddress;
     }
 
@@ -175,7 +175,7 @@ contract MultiAccount is
             }
         }
 
-        require(found, "MultiAccount: Trusted address not found!");
+        require(found, "PairTradingLayer: Trusted address not found!");
 
         // If the address to delete is not the last one in the array, swap it with the last one
         if (indexToDelete < trustedAddresses.length - 1) {
@@ -235,7 +235,7 @@ contract MultiAccount is
     function innerCall(address account, bytes memory _callData) internal {
         (bool _success, bytes memory _resultData) = ISymmioParty(account)._call(_callData);
         emit Call(msg.sender, account, _callData, _success, _resultData);
-        require(_success, "MultiAccount: Error occurred");
+        require(_success, "PairTradingLayer: Error occurred");
     }
 
     function partyACall(
@@ -259,7 +259,7 @@ contract MultiAccount is
 
         for (uint8 i = 0; i < _callDatas.length; i++) {
             bytes memory _callData = _callDatas[i];
-            require(_callData.length >= 4, "MultiAccount: Invalid call data");
+            require(_callData.length >= 4, "PairTradingLayer: Invalid call data");
             bytes4 functionSelector;
             assembly {
                 functionSelector := mload(add(_callData, 0x20))
@@ -268,19 +268,19 @@ contract MultiAccount is
             if (functionSelector == sendQuoteSelector && i == 0) {
                 require(
                     _callDatas.length <= 2,
-                    "MultiAccount: Only two cellData can be there in send quote functions"
+                    "PairTradingLayer: Only two cellData can be there in send quote functions"
                 );
                 uint256 quoteId = ISymmio(symmioAddress).getNextQuoteId();
                 if (_callDatas.length == 2) {
                     bytes memory _secondCellData = _callDatas[1];
-                    require(_secondCellData.length >= 4, "MultiAccount: Invalid call data");
+                    require(_secondCellData.length >= 4, "PairTradingLayer: Invalid call data");
                     bytes4 secondFunctionSelector;
                     assembly {
                         secondFunctionSelector := mload(add(_secondCellData, 0x20))
                     }
                     require(
                         secondFunctionSelector == sendQuoteSelector,
-                        "MultiAccount: all cellDatas should be for send quote function"
+                        "PairTradingLayer: all cellDatas should be for send quote function"
                     );
                 }
                 uint256 secondQuoteId = quoteId + 1;
@@ -289,7 +289,7 @@ contract MultiAccount is
             } else {
                 uint256 startIdx = pairOpsSelectors[functionSelector];
                 if (startIdx > 0) {
-                    require(_callData.length >= startIdx + 32, "MultiAccount: Data is too short");
+                    require(_callData.length >= startIdx + 32, "PairTradingLayer: Data is too short");
                     uint256 quoteId;
                     assembly {
                         quoteId := mload(add(add(_callData, 32), startIdx))
@@ -315,7 +315,7 @@ contract MultiAccount is
                     break;
                 }
             }
-            require(found, "MultiAccount: Can't perform on only one quote from a pair");
+            require(found, "PairTradingLayer: Can't perform on only one quote from a pair");
         }
     }
 
