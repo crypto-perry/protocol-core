@@ -4,28 +4,23 @@
 // For more information, see https://docs.symm.io/legal-disclaimer/license
 pragma solidity >=0.8.18;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-
-contract SymmioParty is AccessControl {
-    bytes32 public constant MULTIACCOUNT_ROLE = keccak256("MULTIACCOUNT_ROLE");
+contract SymmioParty {
     address public symmioAddress;
+    address public multiAccountAddress;
 
-    constructor(address admin, address multiAccountAddress, address symmioAddress_) {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(MULTIACCOUNT_ROLE, multiAccountAddress);
-        symmioAddress = symmioAddress_;
-    }
-
-    event SetSymmioAddress(address oldV3ContractAddress, address newV3ContractAddress);
-
-    function setSymmioAddress(address symmioAddress_) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        emit SetSymmioAddress(symmioAddress, symmioAddress_);
+    constructor(address multiAccountAddress_, address symmioAddress_) {
+        require(
+            multiAccountAddress_ != address(0) && symmioAddress_ != address(0),
+            "SymmioParty: Zero Address"
+        );
+        multiAccountAddress = multiAccountAddress_;
         symmioAddress = symmioAddress_;
     }
 
     function _call(
         bytes memory _callData
-    ) external onlyRole(MULTIACCOUNT_ROLE) returns (bool _success, bytes memory _resultData) {
+    ) external returns (bool _success, bytes memory _resultData) {
+        require(msg.sender == multiAccountAddress, "SymmioParty: Sender should be MultiAccount");
         return symmioAddress.call{ value: 0 }(_callData);
     }
 }
