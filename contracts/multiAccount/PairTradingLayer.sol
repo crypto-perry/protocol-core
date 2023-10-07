@@ -34,6 +34,7 @@ contract PairTradingLayer is
     mapping(address => uint256) public indexOfAccount; // Account to its index mapping
     mapping(address => address) public partyAOwners; // Account to its owner mapping
     mapping(address => address[]) public partyBTrustedAddresses; // Account to its trusted addresses
+    mapping(address => address[]) public partyBAdminAddresses; // Account to its admin addresses
 
     mapping(uint256 => uint256) public abPairs;
     mapping(uint256 => uint256) public baPairs;
@@ -41,7 +42,6 @@ contract PairTradingLayer is
     mapping(bytes4 => uint256) public pairOpsSelectors; // Function selector -> index of quoteId in callData
     bytes4 public sendQuoteSelector;
 
-    address public partiesAdmin; // Admin address for the parties contracts
     address public symmioAddress; // Address of the Symmio platform
     uint256 public saltCounter; // Counter for generating unique addresses with create2
     bytes public partyImplementation;
@@ -78,7 +78,6 @@ contract PairTradingLayer is
         _grantRole(UNPAUSER_ROLE, admin);
         _grantRole(SETTER_ROLE, admin);
         _grantRole(PARTY_B_MANAGER_ROLE, admin);
-        partiesAdmin = admin;
         symmioAddress = symmioAddress_;
     }
 
@@ -104,7 +103,7 @@ contract PairTradingLayer is
         saltCounter += 1;
         bytes memory bytecode = abi.encodePacked(
             partyImplementation,
-            abi.encode(partiesAdmin, address(this), symmioAddress)
+            abi.encode(address(this), symmioAddress)
         );
         assembly {
             contractAddress := create2(0, add(bytecode, 32), mload(bytecode), salt)
