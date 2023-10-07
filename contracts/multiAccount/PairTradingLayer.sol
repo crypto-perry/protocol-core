@@ -27,14 +27,13 @@ contract PairTradingLayer is
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
-    bytes32 public constant PARTY_B_MANAGER_ROLE = keccak256("PARTY_B_MANAGER_ROLE");
 
     // State variables
     mapping(address => Account[]) public accounts; // User to their accounts mapping
     mapping(address => uint256) public indexOfAccount; // Account to its index mapping
     mapping(address => address) public partyAOwners; // Account to its owner mapping
-    mapping(address => address[]) public partyBTrustedAddresses; // Account to its trusted addresses
-    mapping(address => address[]) public partyBAdminAddresses; // Account to its admin addresses
+    mapping(address => mapping(address => bool)) public partyBTrustedAddress; // Account to its trusted addresses
+    mapping(address => mapping(address => bool)) public partyBAdminAddress; // Account to its trusted addresses
 
     mapping(uint256 => uint256) public abPairs;
     mapping(uint256 => uint256) public baPairs;
@@ -51,16 +50,19 @@ contract PairTradingLayer is
         _;
     }
 
-    modifier onlyTrusted(address account, address sender) {
-        address[] storage trustedAddresses = partyBTrustedAddresses[account];
-        bool found = false;
-        for (uint256 i = 0; i < trustedAddresses.length; i++) {
-            if (trustedAddresses[i] == sender) {
-                found = true;
-                break;
-            }
-        }
-        require(found, "PairTradingLayer: Sender isn't trusted by this party");
+    modifier onlyPartyBTrusted(address account, address sender) {
+        require(
+            partyBTrustedAddress[account][sender],
+            "PairTradingLayer: Sender isn't trusted by this party"
+        );
+        _;
+    }
+
+    modifier onlyPartyBAdmin(address account, address sender) {
+        require(
+            partyBAdminAddress[account][sender],
+            "PairTradingLayer: Sender isn't admin for this party"
+        );
         _;
     }
 
@@ -73,11 +75,11 @@ contract PairTradingLayer is
         __Pausable_init();
         __AccessControl_init();
 
+        require(admin != address(0), "PairTradingLayer: Zero address");
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
         _grantRole(UNPAUSER_ROLE, admin);
         _grantRole(SETTER_ROLE, admin);
-        _grantRole(PARTY_B_MANAGER_ROLE, admin);
         symmioAddress = symmioAddress_;
     }
 
@@ -94,6 +96,7 @@ contract PairTradingLayer is
     }
 
     function setSymmioAddress(address addr) external onlyRole(SETTER_ROLE) {
+        require(addr != address(0), "PairTradingLayer: Zero address");
         symmioAddress = addr;
         emit SetSymmioAddress(symmioAddress, addr);
     }
@@ -141,48 +144,59 @@ contract PairTradingLayer is
 
     function createPartyBAccount(
         address[] memory trustedAddresses
-    ) external whenNotPaused onlyRole(PARTY_B_MANAGER_ROLE) returns (address account) {
+    ) external whenNotPaused returns (address account) {
         account = _deployParty();
-        for (uint8 i = 0; i < trustedAddresses.length; i++)
-            partyBTrustedAddresses[account].push(trustedAddresses[i]);
-        emit CreatePartyBAccount(account, trustedAddresses);
+        partyBAdminAddress[account][msg.sender] = true;
+        for (uint8 i = 0; i < trustedAddresses.length; i++){
+            require(trustedAddresses[i] != address(0), "PairTradingLayer: Zero address");
+            partyBTrustedAddress[account][trustedAddresses[i]] = true;
+        }
+        // TODO: have a list for all partyBs
+        emit CreatePartyBAccount(msg.sender, account, trustedAddresses);
     }
 
     function addTrustedAddressToPartyBAccount(
         address account,
         address[] memory trustedAddresses
-    ) external whenNotPaused onlyRole(PARTY_B_MANAGER_ROLE) {
-        for (uint8 i = 0; i < trustedAddresses.length; i++)
-            partyBTrustedAddresses[account].push(trustedAddresses[i]);
-        emit AddTrustedAddressesToPartyBAccount(account, trustedAddresses);
+    ) external whenNotPaused onlyPartyBAdmin(account, msg.sender) {
+        for (uint8 i = 0; i < trustedAddresses.length; i++) {
+            require(trustedAddresses[i] != address(0), "PairTradingLayer: Zero address");
+            partyBTrustedAddress[account][trustedAddresses[i]] = true;
+        }
+        emit AddTrustedAddressesToPartyBAccount(msg.sender, account, trustedAddresses);
     }
 
     function removeTrustedAddressFromPartyBAccount(
         address account,
-        address addr
-    ) external whenNotPaused onlyRole(PARTY_B_MANAGER_ROLE) {
-        address[] storage trustedAddresses = partyBTrustedAddresses[account];
-
-        uint256 indexToDelete;
-        bool found = false;
-
-        for (uint256 i = 0; i < trustedAddresses.length; i++) {
-            if (trustedAddresses[i] == addr) {
-                indexToDelete = i;
-                found = true;
-                break;
-            }
+        address[] memory trustedAddresses
+    ) external whenNotPaused onlyPartyBAdmin(account, msg.sender) {
+        for (uint8 i = 0; i < trustedAddresses.length; i++) {
+            require(trustedAddresses[i] != address(0), "PairTradingLayer: Zero address");
+            partyBTrustedAddress[account][trustedAddresses[i]] = false;
         }
+        emit RemoveTrustedAddressesFromPartyBAccount(msg.sender, account, trustedAddresses);
+    }
 
-        require(found, "PairTradingLayer: Trusted address not found!");
-
-        // If the address to delete is not the last one in the array, swap it with the last one
-        if (indexToDelete < trustedAddresses.length - 1) {
-            trustedAddresses[indexToDelete] = trustedAddresses[trustedAddresses.length - 1];
+    function addAdminAddressToPartyBAccount(
+        address account,
+        address[] memory admins
+    ) external whenNotPaused onlyPartyBAdmin(account, msg.sender) {
+        for (uint8 i = 0; i < admins.length; i++) {
+            require(admins[i] != address(0), "PairTradingLayer: Zero address");
+            partyBAdminAddress[account][admins[i]] = true;
         }
-        // Reduce the array's length by one to remove the last address (which is now a duplicate or the one you want to remove)
-        trustedAddresses.pop();
-        emit RemoveTrustedAddressOfPartyBAccount(account, addr);
+        emit AddAdminAddressesToPartyBAccount(msg.sender, account, admins);
+    }
+
+    function removeAdminAddressFromPartyBAccount(
+        address account,
+        address[] memory admins
+    ) external whenNotPaused onlyPartyBAdmin(account, msg.sender) {
+        for (uint8 i = 0; i < admins.length; i++) {
+            require(admins[i] != address(0), "PairTradingLayer: Zero address");
+            partyBAdminAddress[account][admins[i]] = false;
+        }
+        emit RemoveAdminAddressesFromPartyBAccount(msg.sender, account, admins);
     }
 
     function depositForAccount(address account, uint256 amount) external whenNotPaused {
@@ -222,7 +236,7 @@ contract PairTradingLayer is
         address account,
         uint256 amount,
         address destination
-    ) external onlyTrusted(account, msg.sender) whenNotPaused {
+    ) external onlyPartyBAdmin(account, msg.sender) whenNotPaused {
         bytes memory _callData = abi.encodeWithSignature(
             "withdrawTo(address,uint256)",
             destination,
@@ -247,7 +261,7 @@ contract PairTradingLayer is
     function partyBCall(
         address account,
         bytes[] memory _callDatas
-    ) external onlyTrusted(account, msg.sender) whenNotPaused {
+    ) external onlyPartyBTrusted(account, msg.sender) whenNotPaused {
         return _call(account, _callDatas);
     }
 
@@ -288,7 +302,10 @@ contract PairTradingLayer is
             } else {
                 uint256 startIdx = pairOpsSelectors[functionSelector];
                 if (startIdx > 0) {
-                    require(_callData.length >= startIdx + 32, "PairTradingLayer: Data is too short");
+                    require(
+                        _callData.length >= startIdx + 32,
+                        "PairTradingLayer: Data is too short"
+                    );
                     uint256 quoteId;
                     assembly {
                         quoteId := mload(add(add(_callData, 32), startIdx))

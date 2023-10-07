@@ -13,9 +13,11 @@ interface IPairTradingLayer {
     event SetPartyImplementation(bytes oldAddress, bytes newAddress);
     event SetSymmioAddress(address oldAddress, address newAddress);
     event CreatePartyAAccount(address user, address account, string name);
-    event CreatePartyBAccount(address account, address[] trustedAddresses);
-    event AddTrustedAddressesToPartyBAccount(address account, address[] trustedAddresses);
-    event RemoveTrustedAddressOfPartyBAccount(address account, address trustedAddress);
+    event CreatePartyBAccount(address user, address account, address[] trustedAddresses);
+    event AddTrustedAddressesToPartyBAccount(address user, address account, address[] trustedAddresses);
+    event RemoveTrustedAddressesFromPartyBAccount(address user, address account, address[] trustedAddresses);
+    event AddAdminAddressesToPartyBAccount(address user, address account, address[] admins);
+    event RemoveAdminAddressesFromPartyBAccount(address user, address account, address[] admins);
     event EditPartyAAccountName(address user, address account, string newName);
     event Call(address user, address account, bytes _callData, bool _success, bytes _resultData);
 }
