@@ -10,4 +10,6 @@ interface ISymmio {
     function withdrawTo(address account, uint256 amount) external;
 
     function getCollateral() external view returns (address);
+
+    function getNextQuoteId() external view returns (uint256);
 }

@@ -11,8 +11,9 @@ import "@openzeppelin/contracts-upgradeable/interfaces/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/ISymmio.sol";
-import "../interfaces/ISymmioPartyA.sol";
+import "../interfaces/ISymmioParty.sol";
 import "../interfaces/IMultiAccount.sol";
+import "hardhat/console.sol";
 
 contract MultiAccount is
     IMultiAccount,
@@ -26,22 +27,40 @@ contract MultiAccount is
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
+    bytes32 public constant PARTY_B_MANAGER_ROLE = keccak256("PARTY_B_MANAGER_ROLE");
 
     // State variables
     mapping(address => Account[]) public accounts; // User to their accounts mapping
     mapping(address => uint256) public indexOfAccount; // Account to its index mapping
-    mapping(address => address) public owners; // Account to its owner mapping
+    mapping(address => address) public partyAOwners; // Account to its owner mapping
+    mapping(address => address[]) public partyBTrustedAddresses; // Account to its trusted addresses
 
-    address public accountsAdmin; // Admin address for the contract
+    mapping(uint256 => uint256) public abPairs;
+    mapping(uint256 => uint256) public baPairs;
+
+    mapping(bytes4 => uint256) public pairOpsSelectors; // Function selector -> index of quoteId in callData
+    bytes4 public sendQuoteSelector;
+
+    address public partiesAdmin; // Admin address for the parties contracts
     address public symmioAddress; // Address of the Symmio platform
     uint256 public saltCounter; // Counter for generating unique addresses with create2
-    bytes public accountImplementation;
+    bytes public partyImplementation;
 
     modifier onlyOwner(address account, address sender) {
-        require(
-            owners[account] == sender,
-            "MultiAccount: Sender isn't owner of account"
-        );
+        require(partyAOwners[account] == sender, "MultiAccount: Sender isn't owner of account");
+        _;
+    }
+
+    modifier onlyTrusted(address account, address sender) {
+        address[] storage trustedAddresses = partyBTrustedAddresses[account];
+        bool found = false;
+        for (uint256 i = 0; i < trustedAddresses.length; i++) {
+            if (trustedAddresses[i] == sender) {
+                found = true;
+                break;
+            }
+        }
+        require(found, "MultiAccount: Sender isn't trusted by this party");
         _;
     }
 
@@ -50,11 +69,7 @@ contract MultiAccount is
         _disableInitializers();
     }
 
-    function initialize(
-        address admin,
-        address symmioAddress_,
-        bytes memory accountImplementation_
-    ) public initializer {
+    function initialize(address admin, address symmioAddress_) public initializer {
         __Pausable_init();
         __AccessControl_init();
 
@@ -62,54 +77,39 @@ contract MultiAccount is
         _grantRole(PAUSER_ROLE, admin);
         _grantRole(UNPAUSER_ROLE, admin);
         _grantRole(SETTER_ROLE, admin);
-        accountsAdmin = admin;
+        _grantRole(PARTY_B_MANAGER_ROLE, admin);
+        partiesAdmin = admin;
         symmioAddress = symmioAddress_;
-        accountImplementation = accountImplementation_;
     }
 
-    function setAccountImplementation(
-        bytes memory accountImplementation_
+    function addPairOpsSelector(
+        bytes4 selector,
+        uint256 quoteIdIndex
     ) external onlyRole(SETTER_ROLE) {
-        emit SetAccountImplementation(
-            accountImplementation,
-            accountImplementation_
-        );
-        accountImplementation = accountImplementation_;
+        pairOpsSelectors[selector] = quoteIdIndex;
+    }
+
+    function setPartyImplementation(bytes memory impl_) external onlyRole(SETTER_ROLE) {
+        partyImplementation = impl_;
+        emit SetPartyImplementation(partyImplementation, impl_);
     }
 
     function setSymmioAddress(address addr) external onlyRole(SETTER_ROLE) {
-        emit SetSymmioAddress(symmioAddress, addr);
         symmioAddress = addr;
+        emit SetSymmioAddress(symmioAddress, addr);
     }
 
-    function _deployPartyA() internal returns (address account) {
-        bytes32 salt = keccak256(
-            abi.encodePacked("MultiAccount_", saltCounter)
-        );
+    function _deployParty() internal returns (address contractAddress) {
+        bytes32 salt = keccak256(abi.encodePacked("MultiAccount_", saltCounter));
         saltCounter += 1;
-
         bytes memory bytecode = abi.encodePacked(
-            accountImplementation,
-            abi.encode(accountsAdmin, address(this), symmioAddress)
+            partyImplementation,
+            abi.encode(partiesAdmin, address(this), symmioAddress)
         );
-        account = _deployContract(bytecode, salt);
-        return account;
-    }
-
-    function _deployContract(
-        bytes memory bytecode,
-        bytes32 salt
-    ) internal returns (address contractAddress) {
         assembly {
-            contractAddress := create2(
-                0,
-                add(bytecode, 32),
-                mload(bytecode),
-                salt
-            )
+            contractAddress := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
         require(contractAddress != address(0), "MultiAccount: create2 failed");
-        emit DeployContract(msg.sender, contractAddress);
         return contractAddress;
     }
 
@@ -123,87 +123,199 @@ contract MultiAccount is
 
     //////////////////////////////// Account Management ////////////////////////////////////
 
-    function addAccount(string memory name) external whenNotPaused {
-        address account = _deployPartyA();
+    function createPartyAAccount(string memory name) external whenNotPaused {
+        address account = _deployParty();
         indexOfAccount[account] = accounts[msg.sender].length;
         accounts[msg.sender].push(Account(account, name));
-        owners[account] = msg.sender;
-        emit AddAccount(msg.sender, account, name);
+        partyAOwners[account] = msg.sender;
+        emit CreatePartyAAccount(msg.sender, account, name);
     }
 
-    function editAccountName(
+    function editPartyAAccountName(
         address accountAddress,
         string memory name
-    ) external whenNotPaused {
+    ) external onlyOwner(accountAddress, msg.sender) whenNotPaused {
         uint256 index = indexOfAccount[accountAddress];
         accounts[msg.sender][index].name = name;
-        emit EditAccountName(msg.sender, accountAddress, name);
+        emit EditPartyAAccountName(msg.sender, accountAddress, name);
     }
 
-    function depositForAccount(
+    function createPartyBAccount(
+        address[] memory trustedAddresses
+    ) external whenNotPaused onlyRole(PARTY_B_MANAGER_ROLE) returns (address account) {
+        account = _deployParty();
+        for (uint8 i = 0; i < trustedAddresses.length; i++)
+            partyBTrustedAddresses[account].push(trustedAddresses[i]);
+        emit CreatePartyBAccount(account, trustedAddresses);
+    }
+
+    function addTrustedAddressToPartyBAccount(
         address account,
-        uint256 amount
-    ) external onlyOwner(account, msg.sender) whenNotPaused {
+        address[] memory trustedAddresses
+    ) external whenNotPaused onlyRole(PARTY_B_MANAGER_ROLE) {
+        for (uint8 i = 0; i < trustedAddresses.length; i++)
+            partyBTrustedAddresses[account].push(trustedAddresses[i]);
+        emit AddTrustedAddressesToPartyBAccount(account, trustedAddresses);
+    }
+
+    function removeTrustedAddressFromPartyBAccount(
+        address account,
+        address addr
+    ) external whenNotPaused onlyRole(PARTY_B_MANAGER_ROLE) {
+        address[] storage trustedAddresses = partyBTrustedAddresses[account];
+
+        uint256 indexToDelete;
+        bool found = false;
+
+        for (uint256 i = 0; i < trustedAddresses.length; i++) {
+            if (trustedAddresses[i] == addr) {
+                indexToDelete = i;
+                found = true;
+                break;
+            }
+        }
+
+        require(found, "MultiAccount: Trusted address not found!");
+
+        // If the address to delete is not the last one in the array, swap it with the last one
+        if (indexToDelete < trustedAddresses.length - 1) {
+            trustedAddresses[indexToDelete] = trustedAddresses[trustedAddresses.length - 1];
+        }
+        // Reduce the array's length by one to remove the last address (which is now a duplicate or the one you want to remove)
+        trustedAddresses.pop();
+        emit RemoveTrustedAddressOfPartyBAccount(account, addr);
+    }
+
+    function depositForAccount(address account, uint256 amount) external whenNotPaused {
         address collateral = ISymmio(symmioAddress).getCollateral();
-        IERC20Upgradeable(collateral).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
+        IERC20Upgradeable(collateral).safeTransferFrom(msg.sender, address(this), amount);
         IERC20Upgradeable(collateral).safeApprove(symmioAddress, amount);
         ISymmio(symmioAddress).depositFor(account, amount);
-        emit DepositForAccount(msg.sender, account, amount);
     }
 
-    function depositAndAllocateForAccount(
+    function depositAndAllocateForPartyAAccount(
         address account,
         uint256 amount
     ) external onlyOwner(account, msg.sender) whenNotPaused {
         address collateral = ISymmio(symmioAddress).getCollateral();
-        IERC20Upgradeable(collateral).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
+        IERC20Upgradeable(collateral).safeTransferFrom(msg.sender, address(this), amount);
         IERC20Upgradeable(collateral).safeApprove(symmioAddress, amount);
         ISymmio(symmioAddress).depositFor(account, amount);
         uint256 amountWith18Decimals = (amount * 1e18) /
             (10 ** IERC20Metadata(collateral).decimals());
-        bytes memory _callData = abi.encodeWithSignature(
-            "allocate(uint256)",
-            amountWith18Decimals
-        );
+        bytes memory _callData = abi.encodeWithSignature("allocate(uint256)", amountWith18Decimals);
         innerCall(account, _callData);
-        emit DepositForAccount(msg.sender, account, amount);
-        emit AllocateForAccount(msg.sender, account, amountWith18Decimals);
     }
 
-    function withdrawFromAccount(
+    function withdrawFromAccountPartyA(
         address account,
         uint256 amount
     ) external onlyOwner(account, msg.sender) whenNotPaused {
         bytes memory _callData = abi.encodeWithSignature(
             "withdrawTo(address,uint256)",
-            owners[account],
+            partyAOwners[account],
             amount
         );
-        emit WithdrawFromAccount(msg.sender, account, amount);
+        innerCall(account, _callData);
+    }
+
+    function withdrawFromAccountPartyB(
+        address account,
+        uint256 amount,
+        address destination
+    ) external onlyTrusted(account, msg.sender) whenNotPaused {
+        bytes memory _callData = abi.encodeWithSignature(
+            "withdrawTo(address,uint256)",
+            destination,
+            amount
+        );
         innerCall(account, _callData);
     }
 
     function innerCall(address account, bytes memory _callData) internal {
-        (bool _success, bytes memory _resultData) = ISymmioPartyA(account)
-            ._call(_callData);
+        (bool _success, bytes memory _resultData) = ISymmioParty(account)._call(_callData);
         emit Call(msg.sender, account, _callData, _success, _resultData);
         require(_success, "MultiAccount: Error occurred");
     }
 
-    function _call(
+    function partyACall(
         address account,
         bytes[] memory _callDatas
-    ) public onlyOwner(account, msg.sender) whenNotPaused {
-        for (uint8 i; i < _callDatas.length; i++) {
+    ) external onlyOwner(account, msg.sender) whenNotPaused {
+        return _call(account, _callDatas);
+    }
+
+    function partyBCall(
+        address account,
+        bytes[] memory _callDatas
+    ) external onlyTrusted(account, msg.sender) whenNotPaused {
+        return _call(account, _callDatas);
+    }
+
+    function _call(address account, bytes[] memory _callDatas) internal {
+        uint256[] memory quoteIds = new uint256[](_callDatas.length);
+        uint256[] memory pairedQuoteIds = new uint256[](_callDatas.length);
+        uint256 pairedCount = 0;
+
+        for (uint8 i = 0; i < _callDatas.length; i++) {
+            bytes memory _callData = _callDatas[i];
+            require(_callData.length >= 4, "MultiAccount: Invalid call data");
+            bytes4 functionSelector;
+            assembly {
+                functionSelector := mload(add(_callData, 0x20))
+            }
+
+            if (functionSelector == sendQuoteSelector && i == 0) {
+                require(
+                    _callDatas.length <= 2,
+                    "MultiAccount: Only two cellData can be there in send quote functions"
+                );
+                uint256 quoteId = ISymmio(symmioAddress).getNextQuoteId();
+                if (_callDatas.length == 2) {
+                    bytes memory _secondCellData = _callDatas[1];
+                    require(_secondCellData.length >= 4, "MultiAccount: Invalid call data");
+                    bytes4 secondFunctionSelector;
+                    assembly {
+                        secondFunctionSelector := mload(add(_secondCellData, 0x20))
+                    }
+                    require(
+                        secondFunctionSelector == sendQuoteSelector,
+                        "MultiAccount: all cellDatas should be for send quote function"
+                    );
+                }
+                uint256 secondQuoteId = quoteId + 1;
+                abPairs[quoteId] = secondQuoteId;
+                baPairs[secondQuoteId] = quoteId;
+            } else {
+                uint256 startIdx = pairOpsSelectors[functionSelector];
+                if (startIdx > 0) {
+                    require(_callData.length >= startIdx + 32, "MultiAccount: Data is too short");
+                    uint256 quoteId;
+                    assembly {
+                        quoteId := mload(add(add(_callData, 32), startIdx))
+                    }
+                    uint256 pair = abPairs[quoteId];
+                    if (pair == 0) pair = baPairs[quoteId];
+
+                    if (pair > 0) {
+                        quoteIds[i] = quoteId;
+                        pairedQuoteIds[pairedCount] = pair;
+                        pairedCount++;
+                    }
+                }
+            }
             innerCall(account, _callDatas[i]);
+        }
+
+        for (uint8 i = 0; i < pairedCount; i++) {
+            bool found = false;
+            for (uint8 j = 0; j < _callDatas.length; j++) {
+                if (pairedQuoteIds[i] == quoteIds[j]) {
+                    found = true;
+                    break;
+                }
+            }
+            require(found, "MultiAccount: Can't perform on only one quote from a pair");
         }
     }
 
@@ -218,9 +330,7 @@ contract MultiAccount is
         uint256 start,
         uint256 size
     ) external view returns (Account[] memory) {
-        uint256 len = size > accounts[user].length - start
-            ? accounts[user].length - start
-            : size;
+        uint256 len = size > accounts[user].length - start ? accounts[user].length - start : size;
         Account[] memory userAccounts = new Account[](len);
         for (uint256 i = start; i < start + len; i++) {
             userAccounts[i - start] = accounts[user][i];

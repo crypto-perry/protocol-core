@@ -10,19 +10,12 @@ interface IMultiAccount {
         string name;
     }
 
-    event SetAccountImplementation(bytes oldAddress, bytes newAddress);
+    event SetPartyImplementation(bytes oldAddress, bytes newAddress);
     event SetSymmioAddress(address oldAddress, address newAddress);
-    event DeployContract(address sender, address contractAddress);
-    event AddAccount(address user, address account, string name);
-    event EditAccountName(address user, address account, string newName);
-    event DepositForAccount(address user, address account, uint256 amount);
-    event AllocateForAccount(address user, address account, uint256 amount);
-    event WithdrawFromAccount(address user, address account, uint256 amount);
-    event Call(
-        address user,
-        address account,
-        bytes _callData,
-        bool _success,
-        bytes _resultData
-    );
+    event CreatePartyAAccount(address user, address account, string name);
+    event CreatePartyBAccount(address account, address[] trustedAddresses);
+    event AddTrustedAddressesToPartyBAccount(address account, address[] trustedAddresses);
+    event RemoveTrustedAddressOfPartyBAccount(address account, address trustedAddress);
+    event EditPartyAAccountName(address user, address account, string newName);
+    event Call(address user, address account, bytes _callData, bool _success, bytes _resultData);
 }
