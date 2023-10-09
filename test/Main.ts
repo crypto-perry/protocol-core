@@ -1,14 +1,15 @@
-import { shouldBehaveLikeAccountFacet } from "./AccountFacet.behavior";
-import { shouldBehaveLikeCancelQuote } from "./CancelQuote.behavior";
-import { shouldBehaveLikeClosePosition } from "./ClosePosition.behavior";
-import { shouldBehaveLikeDiamond } from "./Diamond.behavior";
+import { shouldBehaveLikePairTradingLayer } from "./PairTradingLayer.test";
 import { shouldBehaveLikeFuzzTest } from "./FuzzTest.behavior";
-import { shouldBehaveLikeLiquidationFacet } from "./LiquidationFacet.behavior";
-import { shouldBehaveLikeLockQuote } from "./LockQuote.behavior";
-import { shouldBehaveLikeOpenPosition } from "./OpenPosition.behavior";
-import { shouldBehaveLikeSendQuote } from "./SendQuote.behavior";
 import { shouldBehaveLikeSpecificScenario } from "./SpecificScenario.behavior";
 import { shouldBehaveLikeFundingRate } from "./FundingRate.behavior";
+import { shouldBehaveLikeLiquidationFacet } from "./LiquidationFacet.behavior";
+import { shouldBehaveLikeClosePosition } from "./ClosePosition.behavior";
+import { shouldBehaveLikeCancelQuote } from "./CancelQuote.behavior";
+import { shouldBehaveLikeOpenPosition } from "./OpenPosition.behavior";
+import { shouldBehaveLikeLockQuote } from "./LockQuote.behavior";
+import { shouldBehaveLikeSendQuote } from "./SendQuote.behavior";
+import { shouldBehaveLikeAccountFacet } from "./AccountFacet.behavior";
+import { shouldBehaveLikeDiamond } from "./Diamond.behavior";
 
 describe("UnitTests", function() {
   if (process.env.TEST_MODE == "static") {
@@ -51,6 +52,11 @@ describe("UnitTests", function() {
     describe("SpecificScenario", async function() {
       shouldBehaveLikeSpecificScenario();
     });
+
+    describe("PairTradingLayer", async function() {
+      shouldBehaveLikePairTradingLayer();
+    });
+
   } else if (process.env.TEST_MODE == "fuzz") {
     describe("FuzzTest", async function() {
       shouldBehaveLikeFuzzTest();
