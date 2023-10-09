@@ -73,7 +73,7 @@ export async function getDummyPairUpnlAndPriceSig(
 ): Promise<PairUpnlAndPriceSigStruct> {
   return {
     reqId: "0x",
-    timestamp: getBlockTimestamp(),
+    timestamp: await getBlockTimestamp(),
     upnlPartyA: upnlPartyA,
     upnlPartyB: upnlPartyB,
     gatewaySignature: "0x0000000000000000000000000000000000000000",

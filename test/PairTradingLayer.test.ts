@@ -7,9 +7,12 @@ import { decimal } from "./utils/Common";
 import { Hedger } from "./models/Hedger";
 import { RunContext } from "./models/RunContext";
 import { Contract, ContractFactory } from "ethers";
-import { limitQuoteRequestBuilder, QuoteRequest } from "./models/requestModels/QuoteRequest";
-import { PositionType } from "./models/Enums";
-import { getDummySingleUpnlSig } from "./utils/SignatureUtils";
+import { limitQuoteRequestBuilder, marketQuoteRequestBuilder, QuoteRequest } from "./models/requestModels/QuoteRequest";
+import { PositionType, QuoteStatus } from "./models/Enums";
+import { getDummyPairUpnlAndPriceSig, getDummySingleUpnlSig } from "./utils/SignatureUtils";
+import { marketOpenRequestBuilder, OpenRequest } from "./models/requestModels/OpenRequest";
+import { CloseRequest, marketCloseRequestBuilder } from "./models/requestModels/CloseRequest";
+import { FillCloseRequest, marketFillCloseRequestBuilder } from "./models/requestModels/FillCloseRequest";
 
 function getFunctionAbi(contract: Contract | ContractFactory, functionName: string) {
   for (const abi of Object.keys(contract.interface.functions))
@@ -23,7 +26,7 @@ function getFunctionSelector(contract: Contract | ContractFactory, functionName:
 }
 
 
-async function getListFormat(request: QuoteRequest): Promise<any> {
+async function getListFormatOfQuoteRequest(request: QuoteRequest): Promise<any> {
   return [
     request.partyBWhiteList,
     request.symbolId,
@@ -38,6 +41,31 @@ async function getListFormat(request: QuoteRequest): Promise<any> {
     request.maxFundingRate,
     await request.deadline,
     await request.upnlSig,
+  ];
+}
+
+async function getListFormatOfOpenRequest(request: OpenRequest): Promise<any> {
+  return [
+    request.filledAmount,
+    request.openPrice,
+    await getDummyPairUpnlAndPriceSig(request.price, request.upnlPartyA, request.upnlPartyB),
+  ];
+}
+
+async function getListFormatOfCloseRequest(request: CloseRequest): Promise<any> {
+  return [
+    request.closePrice,
+    request.quantityToClose,
+    request.orderType,
+    await request.deadline,
+  ];
+}
+
+async function getListFormatOfFillCloseRequest(request: FillCloseRequest): Promise<any> {
+  return [
+    request.filledAmount,
+    request.closedPrice,
+    await getDummyPairUpnlAndPriceSig(request.price, request.upnlPartyA, request.upnlPartyB),
   ];
 }
 
@@ -305,14 +333,14 @@ export function shouldBehaveLikePairTradingLayer() {
       it("Should call single sendQuotes", async () => {
         let quoteRequest1 = limitQuoteRequestBuilder().build();
         let sendQuote1 = context.partyAFacet.interface.encodeFunctionData("sendQuote",
-          await getListFormat(quoteRequest1));
+          await getListFormatOfQuoteRequest(quoteRequest1));
         await layer.connect(context.signers.user).partyACall(partyAAccount, [sendQuote1]);
       });
 
       it("Should prevent more than two quotes", async () => {
         let request = limitQuoteRequestBuilder().build();
         let callData = context.partyAFacet.interface.encodeFunctionData("sendQuote",
-          await getListFormat(request));
+          await getListFormatOfQuoteRequest(request));
         await expect(layer.connect(context.signers.user).partyACall(partyAAccount, [callData, callData, callData]))
           .to.be.revertedWith("PairTradingLayer: Only two cellData can be there in send quote functions");
       });
@@ -321,7 +349,7 @@ export function shouldBehaveLikePairTradingLayer() {
       it("Should pair two sendQuotes", async () => {
         let request = limitQuoteRequestBuilder().build();
         let callData = context.partyAFacet.interface.encodeFunctionData("sendQuote",
-          await getListFormat(request));
+          await getListFormatOfQuoteRequest(request));
 
         await layer.connect(context.signers.user).partyACall(partyAAccount, [callData, callData]);
 
@@ -329,15 +357,15 @@ export function shouldBehaveLikePairTradingLayer() {
         expect(await layer.baPairs(2)).to.be.equal(1);
       });
 
-      describe("Testing Pair functions", function() {
+      describe("Locking pair quotes", function() {
         beforeEach(async () => {
-          let quoteRequest1 = limitQuoteRequestBuilder().build();
+          let quoteRequest1 = marketQuoteRequestBuilder().build();
           let sendQuote1 = context.partyAFacet.interface.encodeFunctionData("sendQuote",
-            await getListFormat(quoteRequest1));
+            await getListFormatOfQuoteRequest(quoteRequest1));
 
-          let quoteRequest2 = limitQuoteRequestBuilder().positionType(PositionType.SHORT).build();
+          let quoteRequest2 = marketQuoteRequestBuilder().positionType(PositionType.SHORT).build();
           let sendQuote2 = context.partyAFacet.interface.encodeFunctionData("sendQuote",
-            await getListFormat(quoteRequest2));
+            await getListFormatOfQuoteRequest(quoteRequest2));
 
           await layer.connect(context.signers.user).partyACall(partyAAccount, [sendQuote1, sendQuote2]);
 
@@ -364,8 +392,129 @@ export function shouldBehaveLikePairTradingLayer() {
             [2, await getDummySingleUpnlSig()],
           );
           await layer.connect(context.signers.user).partyBCall(partyBAccount, [lockQuote1, lockQuote2]);
+
+          expect((await context.viewFacet.getQuote(1)).quoteStatus).to.be.equal(QuoteStatus.LOCKED);
+          expect((await context.viewFacet.getQuote(2)).quoteStatus).to.be.equal(QuoteStatus.LOCKED);
         });
 
+        describe("Opening pair quotes", function() {
+          beforeEach(async () => {
+            let lockQuote1 = context.partyBFacet.interface.encodeFunctionData("lockQuote",
+              [1, await getDummySingleUpnlSig()],
+            );
+            let lockQuote2 = context.partyBFacet.interface.encodeFunctionData("lockQuote",
+              [2, await getDummySingleUpnlSig()],
+            );
+            await layer.connect(context.signers.user).partyBCall(partyBAccount, [lockQuote1, lockQuote2]);
+          });
+
+          it("Should fail to open one of pair quotes", async () => {
+            let openPosition1 = marketOpenRequestBuilder().build();
+            let openPositionCallData1 = context.partyBFacet.interface.encodeFunctionData("openPosition",
+              [1, ...(await getListFormatOfOpenRequest(openPosition1))],
+            );
+            await expect(layer.connect(context.signers.user).partyBCall(partyBAccount, [openPositionCallData1])).to.be.revertedWith(
+              "PairTradingLayer: Can't perform on only one quote from a pair",
+            );
+          });
+
+          it("Should open pair quotes", async () => {
+            let openPosition1 = marketOpenRequestBuilder().build();
+            let openPositionCallData1 = context.partyBFacet.interface.encodeFunctionData("openPosition",
+              [1, ...(await getListFormatOfOpenRequest(openPosition1))],
+            );
+            let openPosition2 = marketOpenRequestBuilder().build();
+            let openPositionCallData2 = context.partyBFacet.interface.encodeFunctionData("openPosition",
+              [2, ...(await getListFormatOfOpenRequest(openPosition2))],
+            );
+            await layer.connect(context.signers.user).partyBCall(partyBAccount, [openPositionCallData1, openPositionCallData2]);
+
+            expect((await context.viewFacet.getQuote(1)).quoteStatus).to.be.equal(QuoteStatus.OPENED);
+            expect((await context.viewFacet.getQuote(2)).quoteStatus).to.be.equal(QuoteStatus.OPENED);
+          });
+
+          describe("Request to close", function() {
+            beforeEach(async () => {
+              let openPosition1 = marketOpenRequestBuilder().build();
+              let openPositionCallData1 = context.partyBFacet.interface.encodeFunctionData("openPosition",
+                [1, ...(await getListFormatOfOpenRequest(openPosition1))],
+              );
+              let openPosition2 = marketOpenRequestBuilder().build();
+              let openPositionCallData2 = context.partyBFacet.interface.encodeFunctionData("openPosition",
+                [2, ...(await getListFormatOfOpenRequest(openPosition2))],
+              );
+              await layer.connect(context.signers.user).partyBCall(partyBAccount, [openPositionCallData1, openPositionCallData2]);
+            });
+
+            it("Should fail to request to close one quote of pair quotes", async () => {
+              let closeRequest1 = marketCloseRequestBuilder().build();
+              let closeRequestCallData1 = context.partyAFacet.interface.encodeFunctionData("requestToClosePosition",
+                [1, ...(await getListFormatOfCloseRequest(closeRequest1))],
+              );
+              await expect(layer.connect(context.signers.user).partyACall(partyAAccount, [closeRequestCallData1])).to.be.revertedWith(
+                "PairTradingLayer: Can't perform on only one quote from a pair",
+              );
+            });
+
+            it("Should request to close pair quotes", async () => {
+              let closeRequest1 = marketCloseRequestBuilder().build();
+              let closeRequestCallData1 = context.partyAFacet.interface.encodeFunctionData("requestToClosePosition",
+                [1, ...(await getListFormatOfCloseRequest(closeRequest1))],
+              );
+
+              let closeRequest2 = marketCloseRequestBuilder().build();
+              let closeRequestCallData2 = context.partyAFacet.interface.encodeFunctionData("requestToClosePosition",
+                [2, ...(await getListFormatOfCloseRequest(closeRequest2))],
+              );
+              await layer.connect(context.signers.user).partyACall(partyAAccount, [closeRequestCallData1, closeRequestCallData2]);
+
+              expect((await context.viewFacet.getQuote(1)).quoteStatus).to.be.equal(QuoteStatus.CLOSE_PENDING);
+              expect((await context.viewFacet.getQuote(2)).quoteStatus).to.be.equal(QuoteStatus.CLOSE_PENDING);
+            });
+
+            describe("Fill close request", function() {
+              beforeEach(async () => {
+                let closeRequest1 = marketCloseRequestBuilder().build();
+                let closeRequestCallData1 = context.partyAFacet.interface.encodeFunctionData("requestToClosePosition",
+                  [1, ...(await getListFormatOfCloseRequest(closeRequest1))],
+                );
+
+                let closeRequest2 = marketCloseRequestBuilder().build();
+                let closeRequestCallData2 = context.partyAFacet.interface.encodeFunctionData("requestToClosePosition",
+                  [2, ...(await getListFormatOfCloseRequest(closeRequest2))],
+                );
+                await layer.connect(context.signers.user).partyACall(partyAAccount, [closeRequestCallData1, closeRequestCallData2]);
+              });
+
+              it("Should fail to fill close one quote of pair quotes", async () => {
+                let fillCloseRequest1 = marketFillCloseRequestBuilder().build();
+                let fillCloseRequestCallData1 = context.partyBFacet.interface.encodeFunctionData("fillCloseRequest",
+                  [1, ...(await getListFormatOfFillCloseRequest(fillCloseRequest1))],
+                );
+                await expect(layer.connect(context.signers.user).partyBCall(partyBAccount, [fillCloseRequestCallData1])).to.be.revertedWith(
+                  "PairTradingLayer: Can't perform on only one quote from a pair",
+                );
+              });
+
+              it("Should fill close pair quotes", async () => {
+                let fillCloseRequest1 = marketFillCloseRequestBuilder().build();
+                let fillCloseRequestCallData1 = context.partyBFacet.interface.encodeFunctionData("fillCloseRequest",
+                  [1, ...(await getListFormatOfFillCloseRequest(fillCloseRequest1))],
+                );
+
+                let fillCloseRequest2 = marketFillCloseRequestBuilder().build();
+                let fillCloseRequestCallData2 = context.partyBFacet.interface.encodeFunctionData("fillCloseRequest",
+                  [2, ...(await getListFormatOfFillCloseRequest(fillCloseRequest2))],
+                );
+                await layer.connect(context.signers.user).partyBCall(partyBAccount, [fillCloseRequestCallData1, fillCloseRequestCallData2]);
+
+                expect((await context.viewFacet.getQuote(1)).quoteStatus).to.be.equal(QuoteStatus.CLOSED);
+                expect((await context.viewFacet.getQuote(2)).quoteStatus).to.be.equal(QuoteStatus.CLOSED);
+              });
+
+            });
+          });
+        });
       });
     });
 
