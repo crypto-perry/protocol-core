@@ -13,7 +13,6 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/ISymmio.sol";
 import "../interfaces/ISymmioParty.sol";
 import "../interfaces/IPairTradingLayer.sol";
-import "hardhat/console.sol";
 
 contract PairTradingLayer is
     IPairTradingLayer,
@@ -33,7 +32,7 @@ contract PairTradingLayer is
     mapping(address => uint256) public indexOfAccount; // Account to its index mapping
     mapping(address => address) public partyAOwners; // Account to its owner mapping
     mapping(address => mapping(address => bool)) public partyBTrustedAddress; // Account to its trusted addresses
-    mapping(address => mapping(address => bool)) public partyBAdminAddress; // Account to its trusted addresses
+    mapping(address => mapping(address => bool)) public partyBAdminAddress; // Account to its admin addresses
 
     mapping(uint256 => uint256) public abPairs;
     mapping(uint256 => uint256) public baPairs;
@@ -88,6 +87,10 @@ contract PairTradingLayer is
         uint256 quoteIdIndex
     ) external onlyRole(SETTER_ROLE) {
         pairOpsSelectors[selector] = quoteIdIndex;
+    }
+
+    function setSendQuoteSelector(bytes4 selector) external onlyRole(SETTER_ROLE) {
+        sendQuoteSelector = selector;
     }
 
     function setPartyImplementation(bytes memory impl_) external onlyRole(SETTER_ROLE) {
@@ -147,7 +150,7 @@ contract PairTradingLayer is
     ) external whenNotPaused returns (address account) {
         account = _deployParty();
         partyBAdminAddress[account][msg.sender] = true;
-        for (uint8 i = 0; i < trustedAddresses.length; i++){
+        for (uint8 i = 0; i < trustedAddresses.length; i++) {
             require(trustedAddresses[i] != address(0), "PairTradingLayer: Zero address");
             partyBTrustedAddress[account][trustedAddresses[i]] = true;
         }

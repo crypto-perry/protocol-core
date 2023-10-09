@@ -459,6 +459,6 @@ contract ViewFacet {
     }
 
     function getNextQuoteId() external view returns (uint256){
-        return QuoteStorage.layout().lastId;
+        return QuoteStorage.layout().lastId + 1;
     }
 }
