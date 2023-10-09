@@ -10,6 +10,12 @@ interface IPairTradingLayer {
         string name;
     }
 
+    struct Condition {
+        string errorMessage;
+        uint256 startIdx;
+        uint256 expectedValue;
+    }
+
     event SetPartyImplementation(bytes oldAddress, bytes newAddress);
     event SetSymmioAddress(address oldAddress, address newAddress);
     event CreatePartyAAccount(address user, address account, string name);

@@ -38,6 +38,7 @@ contract PairTradingLayer is
     mapping(uint256 => uint256) public baPairs;
 
     mapping(bytes4 => uint256) public pairOpsSelectors; // Function selector -> index of quoteId in callData
+    mapping(bytes4 => Condition[]) public additionalConditions; // Function selector -> conditions
     bytes4 public sendQuoteSelector;
 
     address public symmioAddress; // Address of the Symmio platform
@@ -88,6 +89,27 @@ contract PairTradingLayer is
     ) external onlyRole(SETTER_ROLE) {
         pairOpsSelectors[selector] = quoteIdIndex;
     }
+
+    function addAdditionalCondition(
+        bytes4 selector,
+        Condition memory condition
+    ) external onlyRole(SETTER_ROLE) {
+        additionalConditions[selector].push(condition);
+    }
+
+    function removeAdditionalCondition(bytes4 selector, uint256 index) external onlyRole(SETTER_ROLE) {
+        require(index < additionalConditions[selector].length, "Invalid index");
+        // If there's only one condition, just pop it
+        if (additionalConditions[selector].length == 1) {
+            additionalConditions[selector].pop();
+            return;
+        }
+        // Move the last condition into the place of the one to delete
+        additionalConditions[selector][index] = additionalConditions[selector][additionalConditions[selector].length - 1];
+        // Remove the last condition
+        additionalConditions[selector].pop();
+    }
+
 
     function setSendQuoteSelector(bytes4 selector) external onlyRole(SETTER_ROLE) {
         sendQuoteSelector = selector;
@@ -322,6 +344,15 @@ contract PairTradingLayer is
                         pairedCount++;
                     }
                 }
+            }
+            Condition[] storage conditions = additionalConditions[functionSelector];
+            for (uint8 j = 0; j < conditions.length; j++) {
+                uint256 realValue;
+                uint256 startIdx = conditions[j].startIdx;
+                assembly {
+                    realValue := mload(add(add(_callData, 32), startIdx))
+                }
+                require(realValue == conditions[j].expectedValue, conditions[j].errorMessage);
             }
             innerCall(account, _callDatas[i]);
         }

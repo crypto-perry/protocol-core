@@ -337,6 +337,25 @@ export function shouldBehaveLikePairTradingLayer() {
         await layer.connect(context.signers.user).partyACall(partyAAccount, [sendQuote1]);
       });
 
+      it("Should check additional conditions", async () => {
+        const errorMessage = "Additional check failed for sendQuote";
+        await layer.connect(context.signers.admin).addAdditionalCondition(getFunctionSelector(context.partyAFacet, "sendQuote"),
+          {
+            errorMessage: "Additional check failed for sendQuote",
+            startIdx: 100,
+            expectedValue: 1,
+          },
+        );
+
+        let quoteRequest1 = limitQuoteRequestBuilder().build();
+        let sendQuote1 = context.partyAFacet.interface.encodeFunctionData("sendQuote",
+          await getListFormatOfQuoteRequest(quoteRequest1));
+        await expect(layer.connect(context.signers.user).partyACall(partyAAccount, [sendQuote1])).to.be.revertedWith(errorMessage);
+
+        await layer.connect(context.signers.admin).removeAdditionalCondition(getFunctionSelector(context.partyAFacet, "sendQuote"), 0);
+        await expect(layer.connect(context.signers.user).partyACall(partyAAccount, [sendQuote1])).to.not.be.reverted;
+      });
+
       it("Should prevent more than two quotes", async () => {
         let request = limitQuoteRequestBuilder().build();
         let callData = context.partyAFacet.interface.encodeFunctionData("sendQuote",
