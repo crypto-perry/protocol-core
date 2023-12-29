@@ -6,11 +6,11 @@ pragma solidity >=0.8.18;
 import "./PartyBFacetImpl.sol";
 import "../../utils/Accessibility.sol";
 import "../../utils/Pausable.sol";
-import "./IPartyBEvents.sol";
+import "./IPartyBFacet.sol";
 import "../../storages/MuonStorage.sol";
 import "../Account/AccountFacetImpl.sol";
 
-contract PartyBFacet is Accessibility, Pausable, IPartyBEvents {
+contract PartyBFacet is Accessibility, Pausable, IPartyBFacet {
     using LockedValuesOps for LockedValues;
 
     function lockQuote(
@@ -38,13 +38,7 @@ contract PartyBFacet is Accessibility, Pausable, IPartyBEvents {
             openedPrice,
             pairUpnlSig
         );
-        emit OpenPosition(
-            quoteId,
-            quote.partyA,
-            quote.partyB,
-            filledAmount,
-            openedPrice
-        );
+        emit OpenPosition(quoteId, quote.partyA, quote.partyB, filledAmount, openedPrice);
         if (newId != 0) {
             Quote storage newQuote = QuoteStorage.layout().quotes[newId];
             if (newQuote.quoteStatus == QuoteStatus.PENDING) {
@@ -98,13 +92,7 @@ contract PartyBFacet is Accessibility, Pausable, IPartyBEvents {
     ) external whenNotPartyBActionsPaused onlyPartyBOfQuote(quoteId) notLiquidated(quoteId) {
         uint256 newId = PartyBFacetImpl.openPosition(quoteId, filledAmount, openedPrice, upnlSig);
         Quote storage quote = QuoteStorage.layout().quotes[quoteId];
-        emit OpenPosition(
-            quoteId,
-            quote.partyA,
-            quote.partyB,
-            filledAmount,
-            openedPrice
-        );
+        emit OpenPosition(quoteId, quote.partyA, quote.partyB, filledAmount, openedPrice);
         if (newId != 0) {
             Quote storage newQuote = QuoteStorage.layout().quotes[newId];
             if (newQuote.quoteStatus == QuoteStatus.PENDING) {

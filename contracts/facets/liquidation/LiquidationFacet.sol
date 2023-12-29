@@ -6,11 +6,11 @@ pragma solidity >=0.8.18;
 
 import "../../utils/Pausable.sol";
 import "../../utils/Accessibility.sol";
-import "./ILiquidationEvents.sol";
+import "./ILiquidationFacet.sol";
 import "./LiquidationFacetImpl.sol";
 import "../../storages/AccountStorage.sol";
 
-contract LiquidationFacet is Pausable, Accessibility, ILiquidationEvents {
+contract LiquidationFacet is Pausable, Accessibility, ILiquidationFacet {
     function liquidatePartyA(
         address partyA,
         LiquidationSig memory liquidationSig

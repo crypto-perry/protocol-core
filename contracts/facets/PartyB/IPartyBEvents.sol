@@ -5,8 +5,9 @@
 pragma solidity >=0.8.18;
 
 import "../../storages/QuoteStorage.sol";
+import "../IPartiesEvents.sol";
 
-interface IPartyBEvents {
+interface IPartyBEvents is IPartiesEvents {
     event LockQuote(address partyB, uint256 quoteId);
     event AllocatePartyB(address partyB, address partyA, uint256 amount);
     event UnlockQuote(address partyB, uint256 quoteId, QuoteStatus quoteStatus);
@@ -26,25 +27,6 @@ interface IPartyBEvents {
         uint256 closedPrice,
         QuoteStatus quoteStatus
     );
-    event SendQuote(
-        address partyA,
-        uint256 quoteId,
-        address[] partyBsWhiteList,
-        uint256 symbolId,
-        PositionType positionType,
-        OrderType orderType,
-        uint256 price,
-        uint256 marketPrice,
-        uint256 quantity,
-        uint256 cva,
-        uint256 lf,
-        uint256 partyAmm,
-        uint256 partyBmm,
-        uint256 tradingFee,
-        uint256 deadline
-    );
-
-    event ExpireQuote(QuoteStatus quoteStatus, uint256 quoteId);
 
     event AcceptCancelCloseRequest(uint256 quoteId, QuoteStatus quoteStatus);
 

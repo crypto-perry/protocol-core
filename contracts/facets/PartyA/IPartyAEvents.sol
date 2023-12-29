@@ -5,27 +5,9 @@
 pragma solidity >=0.8.18;
 
 import "../../storages/QuoteStorage.sol";
+import "../IPartiesEvents.sol";
 
-interface IPartyAEvents {
-    event SendQuote(
-        address partyA,
-        uint256 quoteId,
-        address[] partyBsWhiteList,
-        uint256 symbolId,
-        PositionType positionType,
-        OrderType orderType,
-        uint256 price,
-        uint256 marketPrice,
-        uint256 quantity,
-        uint256 cva,
-        uint256 lf,
-        uint256 partyAmm,
-        uint256 partyBmm,
-        uint256 tradingFee,
-        uint256 deadline
-    );
-
-    event ExpireQuote(QuoteStatus quoteStatus, uint256 quoteId);
+interface IPartyAEvents is IPartiesEvents {
     event RequestToCancelQuote(
         address partyA,
         address partyB,
