@@ -6,12 +6,11 @@ pragma solidity >=0.8.18;
 
 import "../../utils/Accessibility.sol";
 import "../../utils/Pausable.sol";
-import "./IAccountEvents.sol";
+import "./IAccountFacet.sol";
 import "./AccountFacetImpl.sol";
 import "../../storages/GlobalAppStorage.sol";
 
-contract AccountFacet is Accessibility, Pausable, IAccountEvents {
-    
+contract AccountFacet is Accessibility, Pausable, IAccountFacet {
     //Party A
     function deposit(uint256 amount) external whenNotAccountingPaused {
         AccountFacetImpl.deposit(msg.sender, amount);
@@ -75,7 +74,13 @@ contract AccountFacet is Accessibility, Pausable, IAccountEvents {
         uint256 amount,
         address partyA,
         SingleUpnlSig memory upnlSig
-    ) external whenNotPartyBActionsPaused notLiquidatedPartyB(msg.sender, partyA) notLiquidatedPartyA(partyA) onlyPartyB {
+    )
+        external
+        whenNotPartyBActionsPaused
+        notLiquidatedPartyB(msg.sender, partyA)
+        notLiquidatedPartyA(partyA)
+        onlyPartyB
+    {
         AccountFacetImpl.deallocateForPartyB(amount, partyA, upnlSig);
         emit DeallocateForPartyB(msg.sender, partyA, amount);
     }

@@ -20,10 +20,7 @@ contract SymmioPartyA is AccessControl {
         symmioAddress = symmioAddress_;
     }
 
-    event SetSymmioAddress(
-        address oldV3ContractAddress,
-        address newV3ContractAddress
-    );
+    event SetSymmioAddress( address oldV3ContractAddress, address newV3ContractAddress );
 
     function setSymmioAddress(
         address symmioAddress_

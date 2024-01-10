@@ -14,8 +14,9 @@ import "../storages/GlobalAppStorage.sol";
 import "../storages/SymbolStorage.sol";
 import "../storages/MuonStorage.sol";
 import "../libraries/LibLockedValues.sol";
+import "./IViewFacet.sol";
 
-contract ViewFacet {
+contract ViewFacet is IViewFacet {
     using LockedValuesOps for LockedValues;
 
     // Account
@@ -458,7 +459,7 @@ contract ViewFacet {
         LibMuon.verifyTSSAndGateway(hash, sign, gatewaySignature);
     }
 
-    function getNextQuoteId() external view returns (uint256){
+    function getNextQuoteId() external view returns (uint256) {
         return QuoteStorage.layout().lastId;
     }
 }

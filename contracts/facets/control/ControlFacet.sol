@@ -11,18 +11,17 @@ import "../../storages/MAStorage.sol";
 import "../../storages/MuonStorage.sol";
 import "../../storages/GlobalAppStorage.sol";
 import "../../storages/SymbolStorage.sol";
-import "./IControlEvents.sol";
+import "./IControlFacet.sol";
 import "../../libraries/LibDiamond.sol";
 
-contract ControlFacet is Accessibility, Ownable, IControlEvents {
-    
-    function transferOwnership(address owner) external onlyOwner{
-        require(owner != address(0),"ControlFacet: Zero address");
-        LibDiamond.setContractOwner(owner); 
+contract ControlFacet is Accessibility, Ownable, IControlFacet {
+    function transferOwnership(address owner) external onlyOwner {
+        require(owner != address(0), "ControlFacet: Zero address");
+        LibDiamond.setContractOwner(owner);
     }
 
     function setAdmin(address user) external onlyOwner {
-        require(user != address(0),"ControlFacet: Zero address");
+        require(user != address(0), "ControlFacet: Zero address");
         GlobalAppStorage.layout().hasRole[user][LibAccessibility.DEFAULT_ADMIN_ROLE] = true;
         emit RoleGranted(LibAccessibility.DEFAULT_ADMIN_ROLE, user);
     }
@@ -31,7 +30,7 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
         address user,
         bytes32 role
     ) external onlyRole(LibAccessibility.DEFAULT_ADMIN_ROLE) {
-        require(user != address(0),"ControlFacet: Zero address");
+        require(user != address(0), "ControlFacet: Zero address");
         GlobalAppStorage.layout().hasRole[user][role] = true;
         emit RoleGranted(role, user);
     }
@@ -99,7 +98,7 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
     function setCollateral(
         address collateral
     ) external onlyRole(LibAccessibility.DEFAULT_ADMIN_ROLE) {
-        require(collateral != address(0),"ControlFacet: Zero address");
+        require(collateral != address(0), "ControlFacet: Zero address");
         require(
             IERC20Metadata(collateral).decimals() <= 18,
             "ControlFacet: Token with more than 18 decimals not allowed"
@@ -148,7 +147,7 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
             name,
             minAcceptableQuoteValue,
             minAcceptablePortionLF,
-            tradingFee, 
+            tradingFee,
             maxLeverage,
             fundingRateEpochDuration,
             fundingRateWindowTime
@@ -203,7 +202,11 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
     ) external onlyRole(LibAccessibility.SYMBOL_MANAGER_ROLE) {
         SymbolStorage.Layout storage symbolLayout = SymbolStorage.layout();
         require(symbolId >= 1 && symbolId <= symbolLayout.lastId, "ControlFacet: Invalid id");
-        emit SetSymbolMaxLeverage(symbolId, symbolLayout.symbols[symbolId].maxLeverage, maxLeverage);
+        emit SetSymbolMaxLeverage(
+            symbolId,
+            symbolLayout.symbols[symbolId].maxLeverage,
+            maxLeverage
+        );
         symbolLayout.symbols[symbolId].maxLeverage = maxLeverage;
     }
 
@@ -299,7 +302,7 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
     function setFeeCollector(
         address feeCollector
     ) external onlyRole(LibAccessibility.DEFAULT_ADMIN_ROLE) {
-        require(feeCollector != address(0),"ControlFacet: Zero address");
+        require(feeCollector != address(0), "ControlFacet: Zero address");
         emit SetFeeCollector(GlobalAppStorage.layout().feeCollector, feeCollector);
         GlobalAppStorage.layout().feeCollector = feeCollector;
     }
@@ -366,10 +369,8 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
         MAStorage.layout().liquidationTimeout = liquidationTimeout;
     }
 
-    function suspendedAddress(
-        address user
-    ) external onlyRole(LibAccessibility.SUSPENDER_ROLE) {
-        require(user != address(0),"ControlFacet: Zero address");
+    function suspendedAddress(address user) external onlyRole(LibAccessibility.SUSPENDER_ROLE) {
+        require(user != address(0), "ControlFacet: Zero address");
         emit SetSuspendedAddress(user, true);
         AccountStorage.layout().suspendedAddresses[user] = true;
     }
@@ -377,7 +378,7 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
     function unsuspendedAddress(
         address user
     ) external onlyRole(LibAccessibility.DEFAULT_ADMIN_ROLE) {
-        require(user != address(0),"ControlFacet: Zero address");
+        require(user != address(0), "ControlFacet: Zero address");
         emit SetSuspendedAddress(user, false);
         AccountStorage.layout().suspendedAddresses[user] = false;
     }
@@ -399,7 +400,7 @@ contract ControlFacet is Accessibility, Ownable, IControlEvents {
         bool status
     ) external onlyRole(LibAccessibility.DEFAULT_ADMIN_ROLE) {
         for (uint8 i; i < partyBs.length; i++) {
-            require(partyBs[i] != address(0),"ControlFacet: Zero address");
+            require(partyBs[i] != address(0), "ControlFacet: Zero address");
             GlobalAppStorage.layout().partyBEmergencyStatus[partyBs[i]] = status;
             emit SetPartyBEmergencyStatus(partyBs[i], status);
         }

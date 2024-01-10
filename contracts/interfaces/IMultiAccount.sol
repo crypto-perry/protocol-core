@@ -18,12 +18,6 @@ interface IMultiAccount {
     event DepositForAccount(address user, address account, uint256 amount);
     event AllocateForAccount(address user, address account, uint256 amount);
     event WithdrawFromAccount(address user, address account, uint256 amount);
-    event Call(
-        address user,
-        address account,
-        bytes _callData,
-        bool _success,
-        bytes _resultData
-    );
+    event Call(address user, address account, bytes _callData, bool _success, bytes _resultData);
     event DelegateAccess(address account, address target, bytes4 selector, bool state);
 }
