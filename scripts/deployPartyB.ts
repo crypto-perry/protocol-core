@@ -7,9 +7,14 @@ async function main() {
 
   // Deploy SymmioPartyB as upgradeable
   const SymmioPartyBFactory = await ethers.getContractFactory("SymmioPartyB");
-  const symmioPartyB = await upgrades.deployProxy(SymmioPartyBFactory, ["", ""], {
-    initializer: "initialize",
-  });
+  const SYMM_CORE_ADDRESS = "0x9A9F48888600FC9c05f11E03Eab575EBB2Fc2c8f";
+  const symmioPartyB = await upgrades.deployProxy(
+    SymmioPartyBFactory,
+    [deployer.address, SYMM_CORE_ADDRESS],
+    {
+      initializer: "initialize",
+    },
+  );
   await symmioPartyB.deployed();
 
   const addresses = {

@@ -14,15 +14,15 @@ dotenvConfig({ path: resolve(__dirname, dotenvConfigPath) });
 const privateKey: string | undefined = process.env.PRIVATE_KEY;
 if (!privateKey) throw new Error("Please set your PRIVATE_KEY in a .env file");
 
-const privateKeysStr: string | undefined = process.env.PRIVATE_KEYS_STR;
-const privateKeyList: string[] = privateKeysStr?.split(",") || [];
+// const privateKeysStr: string | undefined = process.env.PRIVATE_KEYS_STR;
+// const privateKeyList: string[] = privateKeysStr?.split(",") || [];
 
-const ftmAPIKey: string = process.env.FTM_API_KEY || "";
-const bnbApiKey: string = process.env.BNB_API_KEY || "";
-const baseApiKey: string = process.env.BASE_API_KEY || "";
-const polygonApiKey: string = process.env.POLYGON_API_KEY || "";
-const zkEvmApiKey: string = process.env.ZKEVM_API_KEY || "";
-const opBnbApiKey: string = process.env.OPBNB_API_KEY || "";
+// const ftmAPIKey: string = process.env.FTM_API_KEY || "";
+const bnbApiKey: string = process.env.BNBSCAN_API_KEY || "";
+// const baseApiKey: string = process.env.BASE_API_KEY || "";
+// const polygonApiKey: string = process.env.POLYGON_API_KEY || "";
+// const zkEvmApiKey: string = process.env.ZKEVM_API_KEY || "";
+// const opBnbApiKey: string = process.env.OPBNB_API_KEY || "";
 
 const hardhatDockerUrl: string | undefined = process.env.HARDHAT_DOCKER_URL || "";
 
@@ -41,71 +41,72 @@ const config: HardhatUserConfig = {
       // },
       allowUnlimitedContractSize: false,
     },
-    docker: {
-      url: hardhatDockerUrl,
-      allowUnlimitedContractSize: false,
-      accounts: privateKeyList,
-    },
-    fantom: {
-      url: "https://1rpc.io/ftm",
-      accounts: privateKeyList,
-    },
+    // docker: {
+    //   url: hardhatDockerUrl,
+    //   allowUnlimitedContractSize: false,
+    //   accounts: privateKeyList,
+    // },
+    // fantom: {
+    //   url: "https://1rpc.io/ftm",
+    //   accounts: privateKeyList,
+    // },
     bnb: {
-      url: "https://1rpc.io/bnb",
+      url: process.env.RPC_URL,
       accounts: [privateKey],
+      gasPrice: 3500000000, // 3.5gwei
     },
-    opbnb: {
-      url: "https://opbnb.publicnode.com",
-      accounts: [privateKey],
-    },
-    base: {
-      url: "https://1rpc.io/base",
-      accounts: [privateKey],
-    },
-    polygon: {
-      url: "https://polygon-rpc.com",
-      accounts: [privateKey],
-    },
-    zkEvm: {
-      url: "https://zkevm-rpc.com",
-      accounts: [privateKey],
-    },
+    // opbnb: {
+    //   url: "https://opbnb.publicnode.com",
+    //   accounts: [privateKey],
+    // },
+    // base: {
+    //   url: "https://1rpc.io/base",
+    //   accounts: [privateKey],
+    // },
+    // polygon: {
+    //   url: "https://polygon-rpc.com",
+    //   accounts: [privateKey],
+    // },
+    // zkEvm: {
+    //   url: "https://zkevm-rpc.com",
+    //   accounts: [privateKey],
+    // },
   },
   etherscan: {
     apiKey: {
-      fantom: ftmAPIKey,
-      bnb: bnbApiKey,
-      base: baseApiKey,
-      polygon: polygonApiKey,
-      zkEvm: zkEvmApiKey,
-      opbnb: opBnbApiKey,
+      // fantom: ftmAPIKey,
+      bsc: bnbApiKey,
+      // base: baseApiKey,
+      // polygon: polygonApiKey,
+      // zkEvm: zkEvmApiKey,
+      // opbnb: opBnbApiKey,
     },
-    customChains: [
-      {
-        network: "base",
-        chainId: 8453,
-        urls: {
-          apiURL: `https://api.basescan.org/api?apiKey=${baseApiKey}`,
-          browserURL: "https://basescan.org",
-        },
-      },
-      {
-        network: "zkEvm",
-        chainId: 1101,
-        urls: {
-          apiURL: `https://api-zkevm.polygonscan.com/api?apikey=${zkEvmApiKey}`,
-          browserURL: "https://zkevm.polygonscan.com",
-        },
-      },
-      {
-        network: "opbnb",
-        chainId: 204,
-        urls: {
-          apiURL: `https://api-opbnb.bscscan.com/api?apikey=${opBnbApiKey}`,
-          browserURL: "https://opbnb.bscscan.com",
-        },
-      },
-    ],
+    // customChains: [
+    //   {
+    //     network: "base",
+    //     chainId: 8453,
+    //     urls: {
+    //       apiURL: `https://api.basescan.org/api?apiKey=${baseApiKey}`,
+    //       browserURL: "https://basescan.org",
+    //     },
+    //   },
+    //   {
+    //     network: "zkEvm",
+    //     chainId: 1101,
+    //     urls: {
+    //       apiURL: `https://api-zkevm.polygonscan.com/api?apikey=${zkEvmApiKey}`,
+    //       browserURL: "https://zkevm.polygonscan.com",
+    //     },
+    //   },
+    //   {
+    //     network: "opbnb",
+    //     chainId: 204,
+    //     urls: {
+    //       apiURL: `https://api-opbnb.bscscan.com/api?apikey=${opBnbApiKey}`,
+    //       browserURL: "https://opbnb.bscscan.com",
+    //     },
+    //   },
+    // ],
   },
   paths: {
     artifacts: "./artifacts",
